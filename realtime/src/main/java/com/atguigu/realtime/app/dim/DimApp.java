@@ -23,6 +23,8 @@ import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 
 
 /**
@@ -55,6 +57,8 @@ public class DimApp extends BaseAppV1 {
     
     private void connect(SingleOutputStreamOperator<JSONObject> dataStream,
                          SingleOutputStreamOperator<TableProcess> tpStream) {
+  
+        
         // 1. 把配置流做成广播流
         /*
         key:
@@ -93,6 +97,7 @@ public class DimApp extends BaseAppV1 {
                                            Collector<Tuple2<JSONObject, TableProcess>> out) throws Exception {
                     // 4. 处理业务数据:从广播状态中读取配置信息. 把数据和配置组成一队, 交给后序的流进行处理
                     
+                    
                 }
                 
                 
@@ -109,13 +114,34 @@ public class DimApp extends BaseAppV1 {
                     checkTable(tp);
                 }
     
-                private void checkTable(TableProcess tp) {
+                private void checkTable(TableProcess tp) throws SQLException {
                     // 去phoenix中建表: jdbc
+                    // 1. 拼接sql语句
+                    // create table if not exists user(name varchar, age varchar, constraint pk primary key(id))SALT_BUCKETS = 3
+                    StringBuilder sql = new StringBuilder("create table if not exists ");
+                    sql
+                        .append(tp.getSinkTable())
+                        .append("(")
+                        .append(tp.getSinkColumns().replaceAll("([^,]+)", "$1 varchar"))
+                        .append(", constraint pk primary key(")
+                        .append(tp.getSinkPk() == null ? "id" : tp.getSinkPk())
+                        .append("))")
+                        .append(tp.getSinkExtend() == null ? "":tp.getSinkExtend());
+                    // 2. 通过sql, 得到一个预处理语句: PrepareStatement
+                    System.out.println("建表语句: " + sql);
+                    PreparedStatement ps = conn.prepareStatement(sql.toString());
+                    // 3. 给占位赋值(ddl没有占位符)
+                    // 略
+                    // 4. 执行
+                    ps.execute();
                     
+                    // 5. 关闭预处理语句
+                    ps.close();
                 }
     
                 
-    
+                
+                // 把配置信息存入到状态:  table->Tp
                 private void saveTpToState(TableProcess tp,
                                            Context ctx) throws Exception {
                     BroadcastState<String, TableProcess> state = ctx.getBroadcastState(tpStateDesc);
@@ -214,6 +240,27 @@ public class DimApp extends BaseAppV1 {
     根据配置信息, 来决定这个条数据应该写入到什么表中
 
 
+
+-----
+phoenix的盐表:  hbase中的预分区
+region
+
+自动分裂:
+    0.98之前
+        10g的一份为2
+        
+    0.98之前
+        128*2^3 m
+        
+        
+自动迁移:
+
+
+禁止自动分裂
+
+---------
+
+预分区
 
 
  */
