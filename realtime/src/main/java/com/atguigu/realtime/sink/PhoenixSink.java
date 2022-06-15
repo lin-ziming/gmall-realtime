@@ -9,6 +9,9 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
 
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+
 /**
  * @Author lzc
  * @Date 2022/6/15 14:27
@@ -32,17 +35,43 @@ public class PhoenixSink extends RichSinkFunction<Tuple2<JSONObject, TableProces
     }
     
     @Override
-    public void invoke(Tuple2<JSONObject, TableProcess> value, Context context) throws Exception {
-        // 1. 拼接sql
-        
+    public void invoke(Tuple2<JSONObject, TableProcess> value,
+                       Context context) throws Exception {
+        // 1. 写数据到phoenix中
+        writeToPhoenix(value);
+    }
+    
+    private void writeToPhoenix(Tuple2<JSONObject, TableProcess> value) throws SQLException {
+        JSONObject data = value.f0;
+        TableProcess tp = value.f1;
+    
+        // upsert into t(a,b,c)values(?,?,?)
+        // 1. 拼接sql TODO
+        StringBuilder sql = new StringBuilder("upsert into ");
+        sql
+            .append(tp.getSinkTable())
+            .append("(")
+            .append(tp.getSinkColumns())
+            .append(")values(")
+            .append(tp.getSinkColumns().replaceAll("[^,]+", "?"))
+            .append(")");
+        System.out.println("插入语句: " + sql.toString());
         // 2. 根据sql得到 预处理语句
-        
-        // 3. 给占位符赋值
-        
+        PreparedStatement ps = conn.prepareStatement(sql.toString());
+        // 3. 给占位符赋值 TODO
+        String[] columnNames = tp.getSinkColumns().split(",");
+        for (int i = 0; i < columnNames.length; i++) {
+            String columnName = columnNames[i];
+            Object v = data.get(columnName);
+            
+            ps.setString(i + 1,v == null ? null : v.toString());  // v == null   null + "" = "null"    "" null
+         }
+    
         // 4. 执行
-        
+        ps.execute();
         // 5. 提交
-        
+        conn.commit();
         // 6. 关闭ps
+        ps.close();
     }
 }
