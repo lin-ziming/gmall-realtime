@@ -5,14 +5,17 @@ import com.alibaba.fastjson.JSONObject;
 import com.atguigu.realtime.app.BaseAppV1;
 import com.atguigu.realtime.bean.TableProcess;
 import com.atguigu.realtime.common.Constant;
+import com.atguigu.realtime.util.FlinkSinUtil;
 import com.atguigu.realtime.util.JdbcUtil;
 import com.ververica.cdc.connectors.mysql.source.MySqlSource;
 import com.ververica.cdc.connectors.mysql.table.StartupOptions;
 import com.ververica.cdc.debezium.JsonDebeziumDeserializationSchema;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.FilterFunction;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.state.BroadcastState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
+import org.apache.flink.api.common.state.ReadOnlyBroadcastState;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
@@ -25,6 +28,8 @@ import org.apache.flink.util.Collector;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.List;
 
 
 /**
@@ -48,16 +53,50 @@ public class DimApp extends BaseAppV1 {
         SingleOutputStreamOperator<TableProcess> tpStream = readTableProcess(env);
         
         // 3. 数据流和广播流做connect
-        connect(etledStream, tpStream);
+        SingleOutputStreamOperator<Tuple2<JSONObject, TableProcess>> connectedStream = connect(etledStream, tpStream);
         
+        // 4.过滤掉不需要的列
+        SingleOutputStreamOperator<Tuple2<JSONObject, TableProcess>> filteredStream = filterNotNeedColumns(connectedStream);
         // 4. 根据配置信息把数据写入到不同的phoenix表中
+        writeToPhoenix(filteredStream);
         
         
     }
     
-    private void connect(SingleOutputStreamOperator<JSONObject> dataStream,
-                         SingleOutputStreamOperator<TableProcess> tpStream) {
-  
+    private void writeToPhoenix(SingleOutputStreamOperator<Tuple2<JSONObject, TableProcess>> filteredStream) {
+        /*
+        自定义sink:
+            1. 能不能使用 jdbc sink ?
+                不能! 因为jdbc sink 只能写入一个表中, 我们有多个维度表要写
+                
+             2. 自定义sink
+             
+         */
+        filteredStream.addSink(FlinkSinUtil.getPhoenixSink());
+        
+    }
+    
+    private SingleOutputStreamOperator<Tuple2<JSONObject, TableProcess>> filterNotNeedColumns(
+        SingleOutputStreamOperator<Tuple2<JSONObject, TableProcess>> stream) {
+        return stream.map(new MapFunction<Tuple2<JSONObject, TableProcess>, Tuple2<JSONObject, TableProcess>>() {
+            @Override
+            public Tuple2<JSONObject, TableProcess> map(Tuple2<JSONObject, TableProcess> t) throws Exception {
+                JSONObject data = t.f0;
+                TableProcess tp = t.f1;
+                
+                List<String> columns = Arrays.asList(tp.getSinkColumns().split(","));
+                // 取出所有的key, 其实就是数据中的列名
+                data.keySet().removeIf(key -> !columns.contains(key));
+                
+                return t;
+            }
+        });
+    }
+    
+    private SingleOutputStreamOperator<Tuple2<JSONObject, TableProcess>> connect(
+        SingleOutputStreamOperator<JSONObject> dataStream,
+        SingleOutputStreamOperator<TableProcess> tpStream) {
+        
         
         // 1. 把配置流做成广播流
         /*
@@ -70,19 +109,19 @@ public class DimApp extends BaseAppV1 {
         MapStateDescriptor<String, TableProcess> tpStateDesc = new MapStateDescriptor<>("tpState", String.class, TableProcess.class);
         BroadcastStream<TableProcess> bcStream = tpStream.broadcast(tpStateDesc);
         // 2. 数据流去connect广播流
-        dataStream
+        return dataStream
             .connect(bcStream)
             .process(new BroadcastProcessFunction<JSONObject, TableProcess, Tuple2<JSONObject, TableProcess>>() {
-    
-    
+                
+                
                 private Connection conn;
-    
+                
                 @Override
                 public void open(Configuration parameters) throws Exception {
                     // 建立到phoenix的连接
                     conn = JdbcUtil.getPhoenixConnection();
                 }
-    
+                
                 @Override
                 public void close() throws Exception {
                     // 关闭连接
@@ -90,13 +129,21 @@ public class DimApp extends BaseAppV1 {
                         conn.close();
                     }
                 }
-    
+                
                 // 处理业务数据
                 @Override
-                public void processElement(JSONObject value, ReadOnlyContext ctx,
+                public void processElement(JSONObject value,
+                                           ReadOnlyContext ctx,
                                            Collector<Tuple2<JSONObject, TableProcess>> out) throws Exception {
                     // 4. 处理业务数据:从广播状态中读取配置信息. 把数据和配置组成一队, 交给后序的流进行处理
+                    ReadOnlyBroadcastState<String, TableProcess> state = ctx.getBroadcastState(tpStateDesc);
                     
+                    String table = value.getString("table");
+                    TableProcess tp = state.get(table);
+                    
+                    if (tp != null) { // 先判断配置信息是否为null 如果为null, 不需要: 可能是不需要的维度表,或者是事实表.
+                        out.collect(Tuple2.of(value.getJSONObject("data"), tp)); // 有用的信息只剩下data
+                    }
                     
                 }
                 
@@ -106,14 +153,12 @@ public class DimApp extends BaseAppV1 {
                 public void processBroadcastElement(TableProcess tp,
                                                     Context ctx,
                                                     Collector<Tuple2<JSONObject, TableProcess>> out) throws Exception {
-                    
-                    
                     // 1. 处理广播数据: 把广播数据写入到广播状态
                     saveTpToState(tp, ctx);
                     // 2. 根据配置信息, 在phoenix中建表
                     checkTable(tp);
                 }
-    
+                
                 private void checkTable(TableProcess tp) throws SQLException {
                     // 去phoenix中建表: jdbc
                     // 1. 拼接sql语句
@@ -126,7 +171,7 @@ public class DimApp extends BaseAppV1 {
                         .append(", constraint pk primary key(")
                         .append(tp.getSinkPk() == null ? "id" : tp.getSinkPk())
                         .append("))")
-                        .append(tp.getSinkExtend() == null ? "":tp.getSinkExtend());
+                        .append(tp.getSinkExtend() == null ? "" : tp.getSinkExtend());
                     // 2. 通过sql, 得到一个预处理语句: PrepareStatement
                     System.out.println("建表语句: " + sql);
                     PreparedStatement ps = conn.prepareStatement(sql.toString());
@@ -138,7 +183,6 @@ public class DimApp extends BaseAppV1 {
                     // 5. 关闭预处理语句
                     ps.close();
                 }
-    
                 
                 
                 // 把配置信息存入到状态:  table->Tp
@@ -148,8 +192,7 @@ public class DimApp extends BaseAppV1 {
                     String key = tp.getSourceTable();
                     state.put(key, tp);
                 }
-            })
-            .print();
+            });
         
         
     }
