@@ -6,6 +6,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.atguigu.realtime.app.BaseAppV1;
 import com.atguigu.realtime.common.Constant;
 import com.atguigu.realtime.util.DateFormatUtil;
+import com.atguigu.realtime.util.FlinkSinkUtil;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.configuration.Configuration;
@@ -46,14 +47,18 @@ public class Dwd_01_BaseLogApp extends BaseAppV1 {
         SingleOutputStreamOperator<JSONObject> validatedStream = validateNewOrOld(etledStream);
         // 3. 分流
         Map<String, DataStream<String>> streams = splitStream(validatedStream);
-        streams.get(PAGE).print(PAGE);
-        streams.get(ERR).print(ERR);
-        streams.get(DISPLAY).print(DISPLAY);
-        streams.get(ACTION).print(ACTION);
-        streams.get(START).print(START);
-    
-        // 4. 不同的写入到不同的topic中
         
+        // 4. 不同的日志写入到不同的topic中
+        writeToKafka(streams);
+        
+    }
+    
+    private void writeToKafka(Map<String, DataStream<String>> streams) {
+        streams.get(PAGE).addSink(FlinkSinkUtil.getKafkaSink(Constant.TOPIC_DWD_TRAFFIC_PAGE));
+        streams.get(START).addSink(FlinkSinkUtil.getKafkaSink(Constant.TOPIC_DWD_TRAFFIC_START));
+        streams.get(ERR).addSink(FlinkSinkUtil.getKafkaSink(Constant.TOPIC_DWD_TRAFFIC_ERR));
+        streams.get(DISPLAY).addSink(FlinkSinkUtil.getKafkaSink(Constant.TOPIC_DWD_TRAFFIC_DISPLAY));
+        streams.get(ACTION).addSink(FlinkSinkUtil.getKafkaSink(Constant.TOPIC_DWD_TRAFFIC_ACTION));
     }
     
     private Map<String, DataStream<String>> splitStream(SingleOutputStreamOperator<JSONObject> stream) {
@@ -72,7 +77,7 @@ public class Dwd_01_BaseLogApp extends BaseAppV1 {
             public void processElement(JSONObject obj,
                                        Context ctx,
                                        Collector<String> out) throws Exception {
-                // 1. 如何页面都有可能会有err
+                // 1. 页面都有可能会有err
                 if (obj.containsKey("err")) {
                     ctx.output(errTag, obj.toJSONString());
                     // 错误信息对其他的日志没有用处, 把错误信息删除
