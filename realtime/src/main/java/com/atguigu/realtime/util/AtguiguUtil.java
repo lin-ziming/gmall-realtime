@@ -1,6 +1,8 @@
 package com.atguigu.realtime.util;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @Author lzc
@@ -9,5 +11,13 @@ import java.text.SimpleDateFormat;
 public class AtguiguUtil {
     public static String toDate(Long ts) {
         return new SimpleDateFormat("yyyy-MM-dd").format(ts);
+    }
+    
+    public static <T>List<T> toList(Iterable<T> it) {
+        ArrayList<T> result = new ArrayList<>();
+        for (T t : it) {
+            result.add(t);
+        }
+        return result;
     }
 }
