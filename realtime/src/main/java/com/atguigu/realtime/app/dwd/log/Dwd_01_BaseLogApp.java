@@ -78,6 +78,7 @@ public class Dwd_01_BaseLogApp extends BaseAppV1 {
                 @Override
                 public void open(Configuration parameters) throws Exception {
                     firstVisitState = getRuntimeContext().getState(new ValueStateDescriptor<String>("firstVisitState", String.class));
+                   
                 }
                 
                 @Override
