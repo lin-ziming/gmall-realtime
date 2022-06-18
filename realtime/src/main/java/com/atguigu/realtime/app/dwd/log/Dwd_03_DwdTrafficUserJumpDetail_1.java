@@ -1,9 +1,11 @@
 package com.atguigu.realtime.app.dwd.log;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONAware;
 import com.alibaba.fastjson.JSONObject;
 import com.atguigu.realtime.app.BaseAppV1;
 import com.atguigu.realtime.common.Constant;
+import com.atguigu.realtime.util.FlinkSinkUtil;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.cep.CEP;
 import org.apache.flink.cep.PatternSelectFunction;
@@ -26,12 +28,12 @@ import java.util.Map;
  * @Author lzc
  * @Date 2022/6/18 9:12
  */
-public class Dwd_03_DwdTrafficUserJumpDetail extends BaseAppV1 {
+public class Dwd_03_DwdTrafficUserJumpDetail_1 extends BaseAppV1 {
     public static void main(String[] args) {
-        new Dwd_03_DwdTrafficUserJumpDetail().init(
+        new Dwd_03_DwdTrafficUserJumpDetail_1().init(
             2003,
             2,
-            "Dwd_03_DwdTrafficUserJumpDetail",
+            "Dwd_03_DwdTrafficUserJumpDetail_1",
             Constant.TOPIC_DWD_TRAFFIC_PAGE
         );
     }
@@ -41,7 +43,7 @@ public class Dwd_03_DwdTrafficUserJumpDetail extends BaseAppV1 {
                        DataStreamSource<String> stream) {
         
         
-        stream = env
+        /*stream = env
             .fromElements(
                 "{\"common\":{\"mid\":\"101\"},\"page\":{\"page_id\":\"home\"},\"ts\":10000} ",
                 "{\"common\":{\"mid\":\"101\"},\"page\":{\"page_id\":\"home\"},\"ts\":11000} ",
@@ -50,7 +52,7 @@ public class Dwd_03_DwdTrafficUserJumpDetail extends BaseAppV1 {
                     "\"home\"},\"ts\":18000} ",
                 "{\"common\":{\"mid\":\"102\"},\"page\":{\"page_id\":\"good_list\",\"last_page_id\":" +
                     "\"detail\"},\"ts\":30000} "
-            );
+            );*/
         
         
         KeyedStream<JSONObject, String> keyedStream = stream
@@ -64,7 +66,7 @@ public class Dwd_03_DwdTrafficUserJumpDetail extends BaseAppV1 {
         
         // 1. 先定义模式
         Pattern<JSONObject, JSONObject> pattern = Pattern
-            .<JSONObject>begin("entry")
+            .<JSONObject>begin("entry1")
             .where(new SimpleCondition<JSONObject>() {
                 @Override
                 public boolean filter(JSONObject value) throws Exception {
@@ -73,15 +75,15 @@ public class Dwd_03_DwdTrafficUserJumpDetail extends BaseAppV1 {
                     //                    return Strings.isNullOrEmpty(lastPageId);
                 }
             })
-            .next("normal")
+            .next("entry2")
             .where(new SimpleCondition<JSONObject>() {
                 @Override
                 public boolean filter(JSONObject value) throws Exception {
                     String lastPageId = value.getJSONObject("page").getString("last_page_id");
-                    return lastPageId != null && lastPageId.length() > 0;
+                    return lastPageId == null || lastPageId.isEmpty();
                 }
             })
-            .within(Time.seconds(5));
+            .within(Time.seconds(3));
         
         // 2. 把模式作用到流上, 得到一个模式流
         PatternStream<JSONObject> ps = CEP.pattern(keyedStream, pattern);
@@ -92,18 +94,19 @@ public class Dwd_03_DwdTrafficUserJumpDetail extends BaseAppV1 {
                 @Override
                 public JSONObject timeout(Map<String, List<JSONObject>> pattern,
                                           long timeoutTimestamp) throws Exception {
-                    return pattern.get("entry").get(0);
+                    return pattern.get("entry1").get(0);
                 }
             },
             new PatternSelectFunction<JSONObject, JSONObject>() {
                 @Override
                 public JSONObject select(Map<String, List<JSONObject>> pattern) throws Exception {
-                    return null;
+                    return pattern.get("entry1").get(0);
                 }
             }
         );
-        
-        normalStream.getSideOutput(new OutputTag<JSONObject>("late") {}).print();
-        
+    
+        normalStream.getSideOutput(new OutputTag<JSONObject>("late") {}).union(normalStream)
+            .map(JSONAware::toJSONString)
+            .addSink(FlinkSinkUtil.getKafkaSink(Constant.TOPIC_DWD_TRAFFIC_UJ_DETAIL));
     }
 }
