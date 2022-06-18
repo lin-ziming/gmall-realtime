@@ -1,5 +1,6 @@
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 /**
@@ -34,18 +35,27 @@ public class Join2 {
                             ")");
         
         
-        // 内连接
+        // 左连接
+        Table result = tEnv.sqlQuery("select " +
+                                        " s1.id, " +
+                                        " name, " +
+                                        " age " +
+                                        "from s1 " +
+                                        "left join s2 on s1.id=s2.id");
+    
+        tEnv.executeSql("create table s12(id string, name string, age int, primary key(id) not enforced)" +
+                            "with(" +
+                            " 'connector'='upsert-kafka', " +
+                            " 'properties.bootstrap.servers' = 'hadoop162:9092', " +
+                            " 'topic' = 's12'," +
+                            " 'key.format'='json', " +
+                            " 'value.format'='json' " +
+                            ")");
+    
+        result.executeInsert("s12");
         
-        tEnv.sqlQuery("select " +
-                          " s1.id, " +
-                          " name, " +
-                          " age " +
-                          "from s1 " +
-                          "left join s2 on s1.id=s2.id")
-            .execute()
-            .print();
-            
-        }
+    
+    }
         
     
     

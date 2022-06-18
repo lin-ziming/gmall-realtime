@@ -1,10 +1,14 @@
 package com.atguigu.realtime.util;
 
 import com.atguigu.realtime.common.Constant;
-import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer;
+import org.apache.flink.streaming.connectors.kafka.KafkaDeserializationSchema;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 /**
@@ -24,7 +28,26 @@ public class FlinkSourceUtil {
         
         return new FlinkKafkaConsumer<String>(
             topic,
-            new SimpleStringSchema(),
+            // 自定义反序列化器
+            new KafkaDeserializationSchema<String>() {
+                @Override
+                public boolean isEndOfStream(String nextElement) {
+                    return false;
+                }
+    
+                @Override
+                public String deserialize(ConsumerRecord<byte[], byte[]> record) throws Exception {
+                    if (record.value() == null) {
+                        return null;
+                    }
+                    return new String(record.value(), StandardCharsets.UTF_8);
+                }
+    
+                @Override
+                public TypeInformation<String> getProducedType() {
+                    return Types.STRING;
+                }
+            },
             props
         );
     }
