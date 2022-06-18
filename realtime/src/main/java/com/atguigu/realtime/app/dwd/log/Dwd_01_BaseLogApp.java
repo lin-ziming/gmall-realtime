@@ -118,7 +118,7 @@ public class Dwd_01_BaseLogApp extends BaseAppV1 {
                             JSONObject action = actions.getJSONObject(i);
                             action.putAll(common);
                             action.putAll(page);
-                            action.put("ts", ts);
+//                            action.put("ts", ts);  // 使用action自带的ts, 不用外面的覆盖
                             
                             ctx.output(actionTag,action.toJSONString());
                         }
@@ -179,7 +179,10 @@ public class Dwd_01_BaseLogApp extends BaseAppV1 {
             
          */
         return stream
-            .keyBy(obj -> obj.getJSONObject("common").getString("mid"))
+            .keyBy(obj -> {
+                System.out.println(obj);
+                return obj.getJSONObject("common").getString("mid");
+            })
             .process(new KeyedProcessFunction<String, JSONObject, JSONObject>() {
                 
                 private ValueState<String> firstVisitState;
@@ -231,8 +234,9 @@ public class Dwd_01_BaseLogApp extends BaseAppV1 {
         return stream
             .filter(json -> {
                 try {
-                    JSON.parseObject(json);
-                    return true;
+                   
+                    JSONObject obj = JSON.parseObject(json);
+                    return obj != null;
                 } catch (Exception e) {
                     System.out.println("数据格式不是json, 请检查....");
                     return false;
