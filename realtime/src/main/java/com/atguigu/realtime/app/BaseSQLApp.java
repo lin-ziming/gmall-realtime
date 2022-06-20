@@ -37,9 +37,13 @@ public abstract class BaseSQLApp {
     
     
         StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
+        // 给sql应用设置job name
+        tEnv.getConfig().getConfiguration().setString("pipeline.name", ckAndGroupId);
         tEnv.getConfig().setIdleStateRetention(Duration.ofSeconds(ttlSecond));
         
         handle(env, tEnv);
+        
+        
     
     
     }
