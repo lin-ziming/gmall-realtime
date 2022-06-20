@@ -25,7 +25,7 @@ public class Dwd_04_DwdTradeCartAdd extends BaseSQLApp {
         tEnv.getConfig().setIdleStateRetention(Duration.ofSeconds(5));
         
         // 1. 消费 ods_db
-        readOdsDb(tEnv);
+        readOdsDb(tEnv, "Dwd_04_DwdTradeCartAdd");
         // 2. lookup join base_dic
         readBaseDic(tEnv);
         

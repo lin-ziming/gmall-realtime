@@ -46,7 +46,7 @@ public abstract class BaseSQLApp {
     
     protected abstract void handle(StreamExecutionEnvironment env, StreamTableEnvironment tEnv);
     
-    public void readOdsDb(StreamTableEnvironment tEnv){
+    public void readOdsDb(StreamTableEnvironment tEnv, String groupId){
         tEnv.executeSql("create table ods_db(" +
                             " `database` string, " +
                             " `table` string, " +
@@ -55,7 +55,7 @@ public abstract class BaseSQLApp {
                             " `data` map<string, string>, " +
                             " `old` map<string, string>, " +
                             " pt as proctime() " +
-                            ")" + SQLUtil.getKafkaSourceDDL(Constant.TOPIC_ODS_DB, "Dwd_04_DwdTradeCartAdd"));
+                            ")" + SQLUtil.getKafkaSourceDDL(Constant.TOPIC_ODS_DB, groupId));
     }
     
     public void readBaseDic(StreamTableEnvironment tEnv){

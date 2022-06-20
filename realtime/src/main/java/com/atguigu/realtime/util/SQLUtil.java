@@ -26,4 +26,14 @@ public class SQLUtil {
             " 'topic'='" + topic + "' " +
             ")";
     }
+    
+    public static String getUpsertKafkaSinkDDL(String topic) {
+        return "with(" +
+            " 'connector'='upsert-kafka', " +
+            " 'properties.bootstrap.servers'='" + Constant.KAFKA_BROKERS + "', " +
+            " 'key.format'='json', " +
+            " 'value.format'='json', " +
+            " 'topic'='" + topic + "' " +
+            ")";
+    }
 }
