@@ -36,4 +36,6 @@ public class Constant {
     public static final String TOPIC_DWD_TRADE_REFUND_PAY_SUC = "dwd_trade_refund_pay_suc";
     public static final String TOPIC_DWD_TOOL_COUPON_GET = "dwd_tool_coupon_get";
     
+    public static final String TOPIC_DWD_TOOL_COUPON_ORDER = "dwd_tool_coupon_order";
+    public static final String TOPIC_DWD_TOOL_COUPON_PAY = "dwd_tool_coupon_pay";
 }
