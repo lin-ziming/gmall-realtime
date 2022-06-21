@@ -99,7 +99,7 @@ public class Dwd_10_DwdTradeRefundPaySuc extends BaseSQLApp {
                                         "current_row_timestamp() row_op_ts  " +
                                         "from refund_payment rp " +
                                         "join order_info oi on rp.order_id=oi.id " +
-                                        "join order_refund_info ri on rp.sku_id=ri.sku_id " +  // 连接的时候注意不要用订单id, 应该用sku_id
+                                        "join order_refund_info ri on rp.sku_id=ri.sku_id and rp.order_id=ri.order_id " +  // 连接的时候注意不要用订单id, 应该用sku_id
                                         "join base_dic for system_time as of rp.pt as dic on rp.payment_type=dic.dic_code ");
         
         // 7. 写出到kafka中
