@@ -38,4 +38,8 @@ public class Constant {
     
     public static final String TOPIC_DWD_TOOL_COUPON_ORDER = "dwd_tool_coupon_order";
     public static final String TOPIC_DWD_TOOL_COUPON_PAY = "dwd_tool_coupon_pay";
+    public static final String TOPIC_DWD_INTERACTION_FAVOR_ADD = "dwd_interaction_favor_add";
+    
+    public static final String TOPIC_DWD_INTERACTION_COMMENT = "dwd_interaction_comment";
+    public static final String TOPIC_DWD_USER_REGISTER = "dwd_user_register";
 }
