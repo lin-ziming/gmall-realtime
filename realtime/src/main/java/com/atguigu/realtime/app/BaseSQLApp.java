@@ -39,6 +39,8 @@ public abstract class BaseSQLApp {
         StreamTableEnvironment tEnv = StreamTableEnvironment.create(env);
         // 给sql应用设置job name
         tEnv.getConfig().getConfiguration().setString("pipeline.name", ckAndGroupId);
+        // 在join'的时候, 对join双方的表均有效
+        // 对lookup join的维表无效
         tEnv.getConfig().setIdleStateRetention(Duration.ofSeconds(ttlSecond));
         
         handle(env, tEnv);
