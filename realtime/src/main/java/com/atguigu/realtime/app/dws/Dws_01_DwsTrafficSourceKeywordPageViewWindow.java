@@ -75,7 +75,7 @@ public class Dws_01_DwsTrafficSourceKeywordPageViewWindow extends BaseSQLApp {
             .toRetractStream(resultTable, KeywordBean.class)
             .filter(t -> t.f0)
             .map(t -> t.f1)
-            .addSink(FlinkSinUtil.getClickHoseSink("dws_traffic_source_keyword_page_view_window"));
+            .addSink(FlinkSinUtil.getClickHoseSink("dws_traffic_source_keyword_page_view_window",KeywordBean.class ));
     
         try {
             env.execute();
