@@ -2,6 +2,7 @@ package com.atguigu.realtime.app.dws;
 
 import com.atguigu.realtime.app.BaseSQLApp;
 import com.atguigu.realtime.common.Constant;
+import com.atguigu.realtime.function.IkAnalyzer;
 import com.atguigu.realtime.util.SQLUtil;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.Table;
@@ -41,13 +42,28 @@ public class Dws_01_DwsTrafficSourceKeywordPageViewWindow extends BaseSQLApp {
                                         "and page['item'] is not null");
         tEnv.createTemporaryView("t1", t1);
         
-        // 3. 对关键词进行分词
-        
-        
+        // 3. 对关键词进行分词  自定义函数
+        tEnv.createTemporaryFunction("ik_analyzer", IkAnalyzer.class);
+        Table t2 = tEnv.sqlQuery("select " +
+                                        " kw, " +
+                                        " et " +
+                                        "from t1 " +
+                                        "join lateral table(ik_analyzer(keyword))on true ");
+        tEnv.createTemporaryView("t2", t2);
+    
         // 4. 开窗聚合
         // 分组窗口 tvf over
-        
+        // 分组窗口: 滚动 滚动 会话
+        // tvf: 滚动 滑动  累计
+        Table resultTable = tEnv.sqlQuery("select " +
+                                        " kw, " +
+                                        " window_start, " +
+                                        " window_end, " +
+                                        " count(*) ct " +
+                                        "from table( tumble( table t2, descriptor(et), interval '5' second ) ) " +
+                                        "group by kw, window_start, window_end");
         // 5. 把结果写出到clickhouse中
+        
     }
 }
 /*
