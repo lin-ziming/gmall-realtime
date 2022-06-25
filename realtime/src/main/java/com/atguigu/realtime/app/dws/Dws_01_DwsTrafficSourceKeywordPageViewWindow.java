@@ -4,7 +4,7 @@ import com.atguigu.realtime.app.BaseSQLApp;
 import com.atguigu.realtime.bean.KeywordBean;
 import com.atguigu.realtime.common.Constant;
 import com.atguigu.realtime.function.IkAnalyzer;
-import com.atguigu.realtime.util.FlinkSinUtil;
+import com.atguigu.realtime.util.FlinkSinkUtil;
 import com.atguigu.realtime.util.SQLUtil;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.Table;
@@ -75,7 +75,7 @@ public class Dws_01_DwsTrafficSourceKeywordPageViewWindow extends BaseSQLApp {
             .toRetractStream(resultTable, KeywordBean.class)
             .filter(t -> t.f0)
             .map(t -> t.f1)
-            .addSink(FlinkSinUtil.getClickHoseSink("dws_traffic_source_keyword_page_view_window",KeywordBean.class ));
+            .addSink(FlinkSinkUtil.getClickHoseSink("dws_traffic_source_keyword_page_view_window", KeywordBean.class ));
     
         try {
             env.execute();

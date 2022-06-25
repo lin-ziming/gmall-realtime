@@ -5,7 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.atguigu.realtime.app.BaseAppV1;
 import com.atguigu.realtime.bean.TableProcess;
 import com.atguigu.realtime.common.Constant;
-import com.atguigu.realtime.util.FlinkSinUtil;
+import com.atguigu.realtime.util.FlinkSinkUtil;
 import com.atguigu.realtime.util.JdbcUtil;
 import com.ververica.cdc.connectors.mysql.source.MySqlSource;
 import com.ververica.cdc.connectors.mysql.table.StartupOptions;
@@ -72,7 +72,7 @@ public class DimApp extends BaseAppV1 {
              2. 自定义sink
              
          */
-        filteredStream.addSink(FlinkSinUtil.getPhoenixSink());
+        filteredStream.addSink(FlinkSinkUtil.getPhoenixSink());
         
     }
     
