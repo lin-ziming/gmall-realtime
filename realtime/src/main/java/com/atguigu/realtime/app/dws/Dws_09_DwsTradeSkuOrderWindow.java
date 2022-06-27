@@ -6,7 +6,13 @@ import com.atguigu.realtime.app.BaseAppV1;
 import com.atguigu.realtime.bean.TradeSkuOrderBean;
 import com.atguigu.realtime.common.Constant;
 import com.atguigu.realtime.util.AtguiguUtil;
+import com.atguigu.realtime.util.DateFormatUtil;
+import com.atguigu.realtime.util.DimUtil;
+import com.atguigu.realtime.util.JdbcUtil;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.configuration.Configuration;
@@ -14,7 +20,14 @@ import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
+
+import java.sql.Connection;
+import java.time.Duration;
 
 /**
  * @Author lzc
@@ -37,13 +50,121 @@ public class Dws_09_DwsTradeSkuOrderWindow extends BaseAppV1 {
         
         // 2. 根据需要去除一些字段, 封装到pojo中
         SingleOutputStreamOperator<TradeSkuOrderBean> beanStream = parsetToPojo(distinctedStream);
-        beanStream.print();
-        
         // 3. 按照sku_id 进行分组开窗聚合
+        SingleOutputStreamOperator<TradeSkuOrderBean> streamWithoutDim = windowAndAggregate(beanStream);
         
         // 4. 补充维度信息
+        joinDim(streamWithoutDim);
         
         // 5. 写出的奥clickhouse中
+    }
+    
+    private void joinDim(SingleOutputStreamOperator<TradeSkuOrderBean> stream) {
+        
+        stream
+            .map(new RichMapFunction<TradeSkuOrderBean, TradeSkuOrderBean>() {
+    
+                private Connection phoenixConn;
+    
+                @Override
+                public void open(Configuration parameters) throws Exception {
+                    // 获取phoenix连接
+                    phoenixConn = JdbcUtil.getPhoenixConnection();
+                }
+    
+                @Override
+                public void close() throws Exception {
+                    if (phoenixConn != null) {
+                        phoenixConn.close();
+                    }
+                }
+    
+                @Override
+                public TradeSkuOrderBean map(TradeSkuOrderBean bean) throws Exception {
+                    // 1. 根据sku_id 查询出来3个id:  spu_id 和 tm_id 和 c3_id
+                    // 查询sku_info 所有的维度信息   // key: 字段名 value: 值
+                    JSONObject skuInfo = DimUtil.readDimFromPhoenix(phoenixConn, "dim_sku_info", bean.getSkuId());
+                    bean.setSkuName(skuInfo.getString("SKU_NAME")); // {"SPU_ID": "1", "SKU_NAME": "abc"}
+                    bean.setSpuId(skuInfo.getString("SPU_ID"));
+                    bean.setTrademarkId(skuInfo.getString("TM_ID"));
+                    bean.setCategory3Id(skuInfo.getString("CATEGORY3_ID"));
+                    
+                    // 2. base_trademark
+                    JSONObject baseTrademark = DimUtil.readDimFromPhoenix(phoenixConn, "dim_base_trademark", bean.getTrademarkId());
+                    bean.setTrademarkName(baseTrademark.getString("TM_NAME"));
+                    
+                    // 3. spu
+                    JSONObject spuInfo = DimUtil.readDimFromPhoenix(phoenixConn, "dim_spu_info", bean.getSpuId());
+                    bean.setSpuName(spuInfo.getString("SPU_NAME"));
+                    
+                    // 4. c3
+                    JSONObject c3 = DimUtil.readDimFromPhoenix(phoenixConn, "dim_base_category3", bean.getCategory3Id());
+                    bean.setCategory3Name(c3.getString("NAME"));
+                    bean.setCategory2Id(c3.getString("CATEGORY2_ID"));
+                    
+                    // 5. c2
+                    JSONObject c2 = DimUtil.readDimFromPhoenix(phoenixConn, "dim_base_category2", bean.getCategory2Id());
+                    bean.setCategory2Name(c2.getString("NAME"));
+                    bean.setCategory1Id(c2.getString("CATEGORY1_ID"));
+                    
+                    // 6. c1
+                    JSONObject c1 = DimUtil.readDimFromPhoenix(phoenixConn, "dim_base_category1", bean.getCategory1Id());
+                    bean.setCategory1Name(c1.getString("NAME"));
+                    
+                    return bean;
+                }
+            })
+            .print();
+        
+    }
+    
+    private SingleOutputStreamOperator<TradeSkuOrderBean> windowAndAggregate(
+        SingleOutputStreamOperator<TradeSkuOrderBean> stream) {
+        return stream
+            .assignTimestampsAndWatermarks(
+                WatermarkStrategy
+                    .<TradeSkuOrderBean>forBoundedOutOfOrderness(Duration.ofSeconds(3))
+                    .withTimestampAssigner((bean, ts) -> bean.getTs())
+            )
+            .keyBy(TradeSkuOrderBean::getSkuId)
+            .window(TumblingEventTimeWindows.of(Time.seconds(5)))
+            .reduce(
+                new ReduceFunction<TradeSkuOrderBean>() {
+                    @Override
+                    public TradeSkuOrderBean reduce(TradeSkuOrderBean value1,
+                                                    TradeSkuOrderBean value2) throws Exception {
+                        value1.getOrderIdSet().addAll(value2.getOrderIdSet());
+                        value1.setOriginalAmount(value1.getOriginalAmount() + value2.getOriginalAmount());
+                        value1.setActivityAmount(value1.getActivityAmount() + value2.getActivityAmount());
+                        value1.setCouponAmount(value1.getCouponAmount() + value2.getCouponAmount());
+                        value1.setOrderAmount(value1.getOrderAmount() + value2.getOrderAmount());
+                        
+                        return value1;
+                    }
+                },
+                new ProcessWindowFunction<TradeSkuOrderBean, TradeSkuOrderBean, String, TimeWindow>() {
+                    @Override
+                    public void process(String key,
+                                        Context ctx,
+                                        Iterable<TradeSkuOrderBean> elements,
+                                        Collector<TradeSkuOrderBean> out) throws Exception {
+                        
+                        TradeSkuOrderBean bean = elements.iterator().next();
+                        bean.setStt(DateFormatUtil.toYmdHms(ctx.window().getStart()));
+                        bean.setEdt(DateFormatUtil.toYmdHms(ctx.window().getEnd()));
+                        
+                        bean.setTs(System.currentTimeMillis());
+                        
+                        // 根据set集合的长度去设置orderCount的值
+                        bean.setOrderCount((long) bean.getOrderIdSet().size());
+                        
+                        out.collect(bean);
+                        
+                        
+                    }
+                }
+            );
+        
     }
     
     private SingleOutputStreamOperator<TradeSkuOrderBean> parsetToPojo(SingleOutputStreamOperator<JSONObject> stream) {
@@ -53,7 +174,6 @@ public class Dws_09_DwsTradeSkuOrderWindow extends BaseAppV1 {
             @Override
             public TradeSkuOrderBean map(JSONObject value) throws Exception {
                 TradeSkuOrderBean bean = TradeSkuOrderBean.builder()
-                    .userId(value.getString("user_id"))
                     .skuId(value.getString("sku_id"))
                     // 如果字段的值是null, 则会赋值0D
                     .originalAmount(value.getDoubleValue("split_original_amount"))

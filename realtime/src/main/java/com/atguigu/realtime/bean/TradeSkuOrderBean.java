@@ -33,9 +33,6 @@ public class TradeSkuOrderBean {
     String category3Id;
     // 三级品类名称
     String category3Name;
-    
-    // 用户 ID
-    String userId;
     // sku_id
     String skuId;
     // sku 名称
@@ -49,10 +46,7 @@ public class TradeSkuOrderBean {
     // 订单 ID
     @Builder.Default
     Set<String> orderIdSet = new HashSet<>();
-
-    // 独立用户数
-    @Builder.Default
-    Long orderUuCount = 0L;
+    
     // 下单次数
     @Builder.Default
     Long orderCount = 0L;
