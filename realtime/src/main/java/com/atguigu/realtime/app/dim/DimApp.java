@@ -142,7 +142,10 @@ public class DimApp extends BaseAppV1 {
                     TableProcess tp = state.get(table);
                     
                     if (tp != null) { // 先判断配置信息是否为null 如果为null, 不需要: 可能是不需要的维度表,或者是事实表.
-                        out.collect(Tuple2.of(value.getJSONObject("data"), tp)); // 有用的信息只剩下data
+                        JSONObject data = value.getJSONObject("data");
+                        tp.setOperate_type(value.getString("type"));  // 把操作类型传递下去
+                        
+                        out.collect(Tuple2.of(data, tp)); // 有用的信息只剩下data
                     }
                     
                 }

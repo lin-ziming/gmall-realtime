@@ -5,9 +5,11 @@ import com.alibaba.druid.pool.DruidPooledConnection;
 import com.alibaba.fastjson.JSONObject;
 import com.atguigu.realtime.bean.TableProcess;
 import com.atguigu.realtime.util.DruidDSUtil;
+import com.atguigu.realtime.util.RedisUtil;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
+import redis.clients.jedis.Jedis;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -19,12 +21,16 @@ import java.sql.SQLException;
 public class PhoenixSink extends RichSinkFunction<Tuple2<JSONObject, TableProcess>> {
     
     private DruidPooledConnection conn;
+    private Jedis redisClient;
     
     @Override
     public void open(Configuration parameters) throws Exception {
         // 用连接池
         DruidDataSource druidDataSource = DruidDSUtil.getDruidDataSource();
         conn = druidDataSource.getConnection();
+        
+        redisClient = RedisUtil.getRedisClient();
+        
     }
     
     @Override
@@ -39,6 +45,26 @@ public class PhoenixSink extends RichSinkFunction<Tuple2<JSONObject, TableProces
                        Context context) throws Exception {
         // 1. 写数据到phoenix中
         writeToPhoenix(value);
+        // 2. 更新缓存或删除缓存
+        delCache(value);
+        
+    }
+    
+    private void delCache(Tuple2<JSONObject, TableProcess> value) {
+    
+        JSONObject data = value.f0;
+        TableProcess tp = value.f1;
+    
+    
+        // key: 表名:id
+//        "update".equals(tp.get)
+        if ("update".equals(tp.getOperate_type())) {
+            System.out.println("开始删除....");
+            String key = tp.getSinkTable() + ":" + data.getString("id");
+            redisClient.del(key);
+            // 删除的时候,  key不存在怎么办?
+        }
+    
     }
     
     private void writeToPhoenix(Tuple2<JSONObject, TableProcess> value) throws SQLException {
