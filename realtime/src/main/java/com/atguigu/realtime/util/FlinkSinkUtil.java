@@ -1,6 +1,7 @@
 package com.atguigu.realtime.util;
 
 import com.alibaba.fastjson.JSONObject;
+import com.atguigu.realtime.annotation.NotSink;
 import com.atguigu.realtime.bean.KeywordBean;
 import com.atguigu.realtime.bean.TableProcess;
 import com.atguigu.realtime.common.Constant;
@@ -43,7 +44,7 @@ public class FlinkSinkUtil {
                 @Override
                 public ProducerRecord<byte[], byte[]> serialize(String element,
                                                                 @Nullable Long timestamp) {
-                    return new ProducerRecord<>(topic,element.getBytes(StandardCharsets.UTF_8));
+                    return new ProducerRecord<>(topic, element.getBytes(StandardCharsets.UTF_8));
                 }
             },
             props,
@@ -74,6 +75,11 @@ public class FlinkSinkUtil {
         
         String names = Stream
             .of(fields)
+            .filter(field -> {
+                NotSink notSink = field.getAnnotation(NotSink.class);
+                // 没有注解的时候, 属性保留下来
+                return notSink == null;
+            } )  // 过滤掉不需要的字段
             .map(field -> {
                 String name = field.getName();
                 return CaseFormat.LOWER_CAMEL.to(CaseFormat.LOWER_UNDERSCORE, name);  // 驼峰转成下划线
@@ -104,11 +110,13 @@ public class FlinkSinkUtil {
                     Class<?> tClass = t.getClass();
                     Field[] fields = tClass.getDeclaredFields();
                     try {
-                        for (int i = 0; i < fields.length; i++) {
+                        for (int i = 0, position = 1; i < fields.length; i++) {
                             Field field = fields[i];
-                            field.setAccessible(true);
-                            Object v = field.get(t);
-                            ps.setObject(i + 1, v);
+                            if (field.getAnnotation(NotSink.class) == null) {
+                                field.setAccessible(true);
+                                Object v = field.get(t);
+                                ps.setObject(position++, v);
+                            }
                         }
                     } catch (Exception e) {
                         e.printStackTrace();

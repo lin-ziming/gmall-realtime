@@ -23,7 +23,8 @@ public class DimUtil {
         try {
             result = JdbcUtil.<JSONObject>queryList(phoenixConn, sql, args, JSONObject.class);
         } catch (SQLException e) {
-            throw new RuntimeException("sql语句有问题, 请检查sql的拼接是否正常...");
+            
+            throw new RuntimeException("sql语句有问题, 请检查sql的拼接是否正常...: " + sql);
         } catch (IllegalAccessException e) {
             throw new RuntimeException("请检查你的无参构造器是否有public权限...");
         } catch (InstantiationException e) {

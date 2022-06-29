@@ -1,5 +1,6 @@
 package com.atguigu.realtime.bean;
 
+import com.atguigu.realtime.annotation.NotSink;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -44,6 +45,7 @@ public class TradeSkuOrderBean {
 
     //-----
     // 订单 ID
+    @NotSink
     @Builder.Default
     Set<String> orderIdSet = new HashSet<>();
     
