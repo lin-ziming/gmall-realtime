@@ -27,7 +27,10 @@ public class RedisUtil {
     private static JedisPool pool;
     
     public static Jedis getRedisClient() {
-        
-        return pool.getResource();
+    
+        Jedis client = pool.getResource();
+        client.select(1);
+    
+        return client;
     }
 }

@@ -1,6 +1,8 @@
 package com.atguigu.realtime.util;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.atguigu.realtime.common.Constant;
 import redis.clients.jedis.Jedis;
 
 import java.lang.reflect.InvocationTargetException;
@@ -47,6 +49,9 @@ public class DimUtil {
             
             // 把读取到数据再存入到redis中
             writeToRedis(redisClient, dimTable, id, dim);
+            System.out.println(dimTable + " " + id + " 查询的数据库....");
+        }else{
+            System.out.println(dimTable + " " + id + " 查询的缓存 ....");
         }
         
         
@@ -55,12 +60,26 @@ public class DimUtil {
     
     //TODO
     private static void writeToRedis(Jedis redisClient, String dimTable, String id, JSONObject dim) {
-    
+        String key = dimTable + ":" + id;
+        
+        /*redisClient.set(key, dim.toJSONString());
+        redisClient.expire(key, Constant.DIM_TTL);*/
+        
+        redisClient.setex(key, Constant.DIM_TTL, dim.toJSONString());
+        
     }
     
     // TODO
     
     private static JSONObject readFromRedis(Jedis redisClient, String dimTable, String id) {
-        return null;
+        String key = dimTable + ":" + id;
+        String dimJson = redisClient.get(key);
+        
+        JSONObject dim = null;
+        
+        if (dimJson != null) {  // 查到维度数据
+            dim = JSON.parseObject(dimJson);
+        }
+        return dim;
     }
 }

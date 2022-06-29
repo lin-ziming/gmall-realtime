@@ -44,4 +44,5 @@ public class Constant {
     public static final String TOPIC_DWD_USER_REGISTER = "dwd_user_register";
     public static final String CLICKHOSUE_DRIVER = "ru.yandex.clickhouse.ClickHouseDriver";
     public static final String CLICKHOSUE_URL = "jdbc:clickhouse://hadoop162:8123/gmall2022";
+    public static final int DIM_TTL = 2 * 24 * 60 * 60; // 维度ttl:2天
 }

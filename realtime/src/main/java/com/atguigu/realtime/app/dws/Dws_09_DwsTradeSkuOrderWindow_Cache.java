@@ -94,25 +94,25 @@ public class Dws_09_DwsTradeSkuOrderWindow_Cache extends BaseAppV1 {
                     bean.setCategory3Id(skuInfo.getString("CATEGORY3_ID"));
                     
                     // 2. base_trademark
-                    JSONObject baseTrademark = DimUtil.readDimFromPhoenix(phoenixConn, "dim_base_trademark", bean.getTrademarkId());
+                    JSONObject baseTrademark = DimUtil.readDim(redisClient, phoenixConn, "dim_base_trademark", bean.getTrademarkId());
                     bean.setTrademarkName(baseTrademark.getString("TM_NAME"));
                     
                     // 3. spu
-                    JSONObject spuInfo = DimUtil.readDimFromPhoenix(phoenixConn, "dim_spu_info", bean.getSpuId());
+                    JSONObject spuInfo = DimUtil.readDim(redisClient, phoenixConn, "dim_spu_info", bean.getSpuId());
                     bean.setSpuName(spuInfo.getString("SPU_NAME"));
                     
                     // 4. c3
-                    JSONObject c3 = DimUtil.readDimFromPhoenix(phoenixConn, "dim_base_category3", bean.getCategory3Id());
+                    JSONObject c3 = DimUtil.readDim(redisClient, phoenixConn, "dim_base_category3", bean.getCategory3Id());
                     bean.setCategory3Name(c3.getString("NAME"));
                     bean.setCategory2Id(c3.getString("CATEGORY2_ID"));
                     
                     // 5. c2
-                    JSONObject c2 = DimUtil.readDimFromPhoenix(phoenixConn, "dim_base_category2", bean.getCategory2Id());
+                    JSONObject c2 = DimUtil.readDim(redisClient, phoenixConn, "dim_base_category2", bean.getCategory2Id());
                     bean.setCategory2Name(c2.getString("NAME"));
                     bean.setCategory1Id(c2.getString("CATEGORY1_ID"));
                     
                     // 6. c1
-                    JSONObject c1 = DimUtil.readDimFromPhoenix(phoenixConn, "dim_base_category1", bean.getCategory1Id());
+                    JSONObject c1 = DimUtil.readDim(redisClient, phoenixConn, "dim_base_category1", bean.getCategory1Id());
                     bean.setCategory1Name(c1.getString("NAME"));
                     
                     return bean;
@@ -267,6 +267,45 @@ redis(旁路缓存)
 
 
 redis数据结构的选择:
+
+string
+   key             value
+   表名:id         json格式的字符串
+   
+   好处:
+    1. 方便读写
+    2. 可以单独给每个维度设置过期时间 ttl
+    
+   坏处:
+    redis中key的个数非常多, 不太方便管理. 而且有与起其他的key冲突风险
+    
+    解决:把维度数据放入一个专门的库中
+    
+   
+list
+   
+   key          value
+   表名          {json格式字符串, josn格式字符串...}
+   
+   坏处:
+    读方便, 需要读取这个张所有缓存数据, 然后再遍历
+   
+   ttl一张内的数据会同时失效
+
+set
+
+
+hash
+   key        field          value
+   表名         id           json字符串
+   
+   
+   
+   一共6个key
+   
+   ttl
+
+zset
 
 
 
