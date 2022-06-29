@@ -121,7 +121,6 @@ public class FlinkSinkUtil {
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
-                    
                 }
             },
             new JdbcExecutionOptions.Builder()
