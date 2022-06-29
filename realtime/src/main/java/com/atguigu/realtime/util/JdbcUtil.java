@@ -58,14 +58,14 @@ public class JdbcUtil {
                                         String sql,
                                         Object[] args,
                                         Class<T> tClass,
-                                        Boolean... underlineToCaseCamel) throws SQLException, IllegalAccessException, InstantiationException, InvocationTargetException {
+                                        Boolean ... underlineToCaseCamel) throws SQLException, IllegalAccessException, InstantiationException, InvocationTargetException {
         ArrayList<T> result = new ArrayList<>();
         boolean isToCamel = false;
         if (underlineToCaseCamel.length > 0) {
             isToCamel = underlineToCaseCamel[0];
         }
       
-        // 1. 获取预处理语句
+        // 1. 获取预处理语句s
         PreparedStatement ps = conn.prepareStatement(sql);
         // 2. 给占位符赋值
         for (int i = 0; args != null && i < args.length; i++) {
