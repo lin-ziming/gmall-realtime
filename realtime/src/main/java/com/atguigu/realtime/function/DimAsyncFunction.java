@@ -70,3 +70,28 @@ public abstract class DimAsyncFunction<T> extends RichAsyncFunction<T, T> implem
         
     }
 }
+/*
+异步超时
+  其他的原因导致异步处理没有完成, 所以会报超时
+  
+  1. 首先检查集群 redis hdfs kafka hbase
+  2. phoenix能否正常进入
+  3. 检查phoenix中的维度表是否全
+  4. 确实每张表都有数据
+        通过 bootstrap 同步一些维度数据
+ 
+hbase起不来:
+    hdfs导致hbase出问题.
+    重置
+    先停止
+        hdfs: 删除目录 /hbase
+        zk:  deleteall /hbase
+        
+     再启动
+
+kakfa出问题:
+    删除 logs/ 目录下所有文件
+        xcall /opt/module/kafka../logs/*
+     zk  删除节点:  deleteall /kafka
+ */
+
