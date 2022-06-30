@@ -45,8 +45,11 @@ public class Dws_11_TradeTrademarkCategoryUserRefundBean extends BaseAppV1 {
                        DataStreamSource<String> stream) {
         // 1. 解析成pojo
         SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> beanStream = parseToPojo(stream);
-        // 2. 开窗聚合
-        SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> aggregatedStream = windowAndAgg(beanStream);
+    
+        SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> beanStreamWithC3IdAndTmId =  joinC3IdAndTmId(beanStream);
+        
+        // 2. 开窗聚合 需要c3id和tmid
+        SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> aggregatedStream = windowAndAgg(beanStreamWithC3IdAndTmId);
         // 3. 补充维度数据
         SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> resultStream = joinDim(aggregatedStream);
         
@@ -54,24 +57,21 @@ public class Dws_11_TradeTrademarkCategoryUserRefundBean extends BaseAppV1 {
         writeToClickHouse(resultStream);
     }
     
-    private void writeToClickHouse(SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> resultStream) {
-        resultStream.addSink(FlinkSinkUtil.getClickHoseSink("dws_trade_trademark_category_user_refund_window", TradeTrademarkCategoryUserRefundBean.class));
-    }
-    
-    private SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> joinDim(SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> stream) {
-        SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> skuInfoStream = AsyncDataStream.unorderedWait(
-            stream,
+    private SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> joinC3IdAndTmId(
+        SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> beanStream) {
+        return AsyncDataStream.unorderedWait(
+            beanStream,
             new DimAsyncFunction<TradeTrademarkCategoryUserRefundBean>(){
                 @Override
                 public String getTable() {
                     return "dim_sku_info";
                 }
-            
+        
                 @Override
                 public String getId(TradeTrademarkCategoryUserRefundBean input) {
                     return input.getSkuId();
                 }
-            
+        
                 @Override
                 public void addDim(TradeTrademarkCategoryUserRefundBean bean, JSONObject dim) {
                     bean.setTrademarkId(dim.getString("TM_ID"));
@@ -81,9 +81,17 @@ public class Dws_11_TradeTrademarkCategoryUserRefundBean extends BaseAppV1 {
             60,
             TimeUnit.SECONDS
         );
+    }
+    
+    private void writeToClickHouse(SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> resultStream) {
+        resultStream.addSink(FlinkSinkUtil.getClickHoseSink("dws_trade_trademark_category_user_refund_window", TradeTrademarkCategoryUserRefundBean.class));
+    }
+    
+    private SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> joinDim(SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> stream) {
+      
     
         SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> tmStream = AsyncDataStream.unorderedWait(
-            skuInfoStream,
+            stream,
             new DimAsyncFunction<TradeTrademarkCategoryUserRefundBean>() {
                 @Override
                 public String getTable() {
@@ -103,9 +111,7 @@ public class Dws_11_TradeTrademarkCategoryUserRefundBean extends BaseAppV1 {
             60,
             TimeUnit.SECONDS
         );
-    
-       
-    
+        
     
         SingleOutputStreamOperator<TradeTrademarkCategoryUserRefundBean> c3Stream = AsyncDataStream.unorderedWait(
             tmStream,
@@ -184,7 +190,7 @@ public class Dws_11_TradeTrademarkCategoryUserRefundBean extends BaseAppV1 {
                     .<TradeTrademarkCategoryUserRefundBean>forBoundedOutOfOrderness(Duration.ofSeconds(3))
                     .withTimestampAssigner((bean, ts) -> bean.getTs())
             )
-            .keyBy(bean -> bean.getSkuId() + ":" + bean.getUserId())
+            .keyBy(bean -> bean.getTrademarkId() + ":" +  bean.getCategory3Id() + ":" + bean.getUserId())
             .window(TumblingEventTimeWindows.of(Time.seconds(5)))
             .reduce(
                 new ReduceFunction<TradeTrademarkCategoryUserRefundBean>() {
