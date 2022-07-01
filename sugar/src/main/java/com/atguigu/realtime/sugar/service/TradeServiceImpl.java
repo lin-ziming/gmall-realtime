@@ -1,8 +1,6 @@
 package com.atguigu.realtime.sugar.service;
 
-import com.atguigu.realtime.sugar.bean.Province;
-import com.atguigu.realtime.sugar.bean.Spu;
-import com.atguigu.realtime.sugar.bean.Tm;
+import com.atguigu.realtime.sugar.bean.*;
 import com.atguigu.realtime.sugar.mapper.TradeMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -37,5 +35,16 @@ public class TradeServiceImpl implements TradeService{
     public List<Province> statsByProvince(int date) {
         return tradeMapper.statsByProvince(date);
     }
+    
+    @Override
+    public List<Traffic> statsPVUvSV(int date) {
+        return tradeMapper.statsPVUvSV(date);
+    }
+    
+    @Override
+    public List<Kw> statsKw(int date) {
+        return tradeMapper.statsKw(date);
+    }
+    
     
 }

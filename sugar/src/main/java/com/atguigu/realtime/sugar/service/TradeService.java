@@ -1,8 +1,6 @@
 package com.atguigu.realtime.sugar.service;
 
-import com.atguigu.realtime.sugar.bean.Province;
-import com.atguigu.realtime.sugar.bean.Spu;
-import com.atguigu.realtime.sugar.bean.Tm;
+import com.atguigu.realtime.sugar.bean.*;
 
 import java.util.List;
 
@@ -19,4 +17,8 @@ public interface TradeService {
     List<Tm> gmvByTm(int date);
     
     List<Province> statsByProvince(int date);
+    
+    List<Traffic> statsPVUvSV(int date);
+    
+    List<Kw> statsKw(int date);
 }
